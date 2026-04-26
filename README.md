@@ -2,48 +2,86 @@
 
 ## 📌 Overview
 
-This project is an **AI-powered talent scouting system** that matches candidate resumes with job descriptions using:
+This project is an AI-powered recruitment system that automatically:
 
-* Machine Learning (classification)
-* NLP (text processing)
-* Semantic similarity (embeddings)
+* Classifies resumes into job categories
+* Matches resumes with job descriptions
+* Ranks candidates based on relevance and inferred interest
 
-It helps recruiters **automatically shortlist and rank candidates** based on relevance and inferred interest.
+It combines **Machine Learning + NLP + Semantic Search** to reduce manual hiring effort.
 
 ---
 
 ## 🚀 Features
 
-* 📄 Resume classification into job categories
-* 🧠 Semantic matching using Sentence Transformers
+* 📄 Resume classification using TF-IDF + Logistic Regression
+* 🧠 Semantic similarity using Sentence Transformers
 * 🎯 Candidate ranking based on:
 
-  * Match score (similarity)
-  * Interest score (keyword overlap)
+  * Match Score (semantic similarity)
+  * Interest Score (keyword overlap)
 * 📊 Final ranked output in CSV format
 * 🔍 Explainable results (matched skills + reasoning)
 
 ---
 
+## 🏗️ Architecture
+
+The system follows a hybrid NLP pipeline:
+
+```
+Resumes CSV
+   ↓
+Text Cleaning & Preprocessing
+   ↓
+TF-IDF Vectorization
+   ↓
+Logistic Regression Classifier
+   ↓
+Predicted Job Category
+
+Job Descriptions CSV
+   ↓
+Text Cleaning
+   ↓
+Sentence Transformer Embeddings
+
+Resumes → Sentence Transformer Embeddings
+   ↓
+Cosine Similarity Matching with Job Descriptions
+   ↓
+Filtering by Predicted Category
+   ↓
+Scoring System:
+   - Match Score (semantic similarity)
+   - Interest Score (keyword overlap)
+   ↓
+Final Ranking Engine
+   ↓
+Output: ranked_candidates.csv
+```
+
+---
+
 ## 🧠 How It Works
 
-### 1. Data Processing
+### 1. Data Preprocessing
 
 * Cleans resume and job description text
-* Normalizes categories (e.g., "IT" vs "information-technology")
+* Removes special characters and noise
 
-### 2. Classification Model
+### 2. Resume Classification
 
-* Uses **TF-IDF + Logistic Regression**
-* Predicts category of each resume
+* Uses TF-IDF vectorization
+* Logistic Regression predicts job category
 
 ### 3. Semantic Matching
 
-* Uses **Sentence Transformers (`all-MiniLM-L6-v2`)**
-* Converts text into embeddings
-* Calculates similarity between resumes and job descriptions
+* Sentence Transformer (`all-MiniLM-L6-v2`)
+* Converts resumes and JDs into embeddings
+* Uses cosine similarity for matching
 
-### 4. Scoring Logic
+### 4. Scoring System
 
 Final Score =
 `0.7 × Match Score (semantic similarity)` +
@@ -112,7 +150,7 @@ The system generates:
 output/ranked_candidates.csv
 ```
 
-### Sample Output Columns:
+### Output Columns:
 
 * jd_id
 * candidate_id
@@ -128,46 +166,40 @@ output/ranked_candidates.csv
 ## 📊 Model Performance
 
 * Accuracy: ~68–70%
-* Model: Logistic Regression (baseline)
-* Embeddings: Sentence Transformers
+* Model: Logistic Regression
+* Embeddings: Sentence Transformers (MiniLM)
 
 ---
 
 ## 🎯 Example Use Case
 
-A recruiter uploads:
-
-* Multiple resumes
-* A job description
-
-The system:
-
-* Filters relevant candidates
-* Ranks top matches
-* Explains why they were selected
+1. Recruiter uploads resumes + job descriptions
+2. System classifies resumes into domains
+3. Semantic matching finds relevant candidates
+4. Candidates are ranked and explained
 
 ---
 
 ## ⚠️ Limitations
 
 * Basic keyword-based skill extraction
-* Limited dataset size
-* Some categories may have lower prediction accuracy
+* Dataset size affects accuracy
+* Some categories may be underrepresented
 
 ---
 
 ## 🔮 Future Improvements
 
-* Use advanced models (BERT / LLMs)
-* Better skill extraction (NER-based)
-* Real-time chatbot integration
-* Web UI (Streamlit or Flask)
+* Upgrade to transformer-based classifier (BERT/LLM)
+* Better skill extraction using NER models
+* Web UI (Streamlit/Flask)
+* Real-time recruitment dashboard
 * Feedback loop for continuous learning
 
 ---
 
 ## 👨‍💻 Author
 
-Built as a fast prototype for AI-based recruitment automation.
+Built as a prototype AI recruitment assistant using NLP and Machine Learning.
 
 ---
