@@ -8,37 +8,59 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report
 
-from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
+from sentence_transformers import SentenceTransformer, util
 
-# -------------------------------
-# PATH SETUP (IMPORTANT)
-# -------------------------------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR = os.path.abspath(os.path.join(BASE_DIR, ".."))
 
-resume_path = os.path.join(ROOT_DIR, "data", "resume.csv")
-jd_path = os.path.join(ROOT_DIR, "data", "job_descriptions.csv")
-output_path = os.path.join(ROOT_DIR, "output", "ranked_candidates.csv")
+# ================================
+# 📁 FILE PATH SETUP (RELATIVE)
+# ================================
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 
-# -------------------------------
-# LOAD DATA
-# -------------------------------
-resume_df = pd.read_csv(resume_path)
-jd_df = pd.read_csv(jd_path)
+RESUME_PATH = os.path.join(BASE_DIR, "data", "resume.csv")
+JD_PATH = os.path.join(BASE_DIR, "data", "job_descriptions.csv")
+OUTPUT_PATH = os.path.join(BASE_DIR, "output", "ranked_candidates.csv")
 
-print("Columns:", resume_df.columns)
-print("\nCategory distribution:\n", resume_df['category'].value_counts())
-print("\nMissing values:\n", resume_df.isnull().sum())
 
-# -------------------------------
-# TRAIN CLASSIFICATION MODEL
-# -------------------------------
-X = resume_df['resume']
+# ================================
+# 📊 LOAD DATA
+# ================================
+resume_df = pd.read_csv(RESUME_PATH)
+jd_df = pd.read_csv(JD_PATH)
+
+print("Resume Columns:", resume_df.columns)
+print("JD Columns:", jd_df.columns)
+
+
+# ================================
+# 🧠 TEXT CLEANING
+# ================================
+def clean_text(text):
+    text = str(text).lower()
+    text = re.sub(r'[^a-zA-Z ]', ' ', text)
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip()
+
+resume_df['clean_resume'] = resume_df['resume'].apply(clean_text)
+
+
+# ================================
+# 🏷️ CATEGORY NORMALIZATION
+# ================================
+def normalize_category(text):
+    return str(text).lower().replace("-", " ").strip()
+
+resume_df['norm_category'] = resume_df['category'].apply(normalize_category)
+jd_df['norm_category'] = jd_df['category'].apply(normalize_category)
+
+
+# ================================
+# 🤖 TRAIN CLASSIFIER
+# ================================
+X = resume_df['clean_resume']
 y = resume_df['category']
 
-tfidf = TfidfVectorizer(stop_words='english', max_features=5000)
-X_vec = tfidf.fit_transform(X)
+vectorizer = TfidfVectorizer(stop_words='english', max_features=3000)
+X_vec = vectorizer.fit_transform(X)
 
 X_train, X_test, y_train, y_test = train_test_split(
     X_vec, y, test_size=0.2, random_state=42
@@ -53,130 +75,116 @@ print("\nAccuracy:", accuracy_score(y_test, y_pred))
 print("\nClassification Report:\n")
 print(classification_report(y_test, y_pred))
 
-# Predict categories for all resumes
+
+# Predict category for all resumes
 resume_df['predicted_category'] = model.predict(X_vec)
 
-# -------------------------------
-# LOAD EMBEDDING MODEL
-# -------------------------------
+
+# ================================
+# 🤖 LOAD EMBEDDING MODEL
+# ================================
 print("\nLoading Sentence Transformer...")
 embedder = SentenceTransformer('all-MiniLM-L6-v2')
 
 print("Encoding resumes...")
 resume_embeddings = embedder.encode(
-    resume_df['resume'].tolist(), show_progress_bar=True
+    resume_df['clean_resume'].tolist(),
+    convert_to_tensor=True
 )
 
-# -------------------------------
-# HELPER FUNCTIONS
-# -------------------------------
 
-def extract_keywords(text):
-    words = re.findall(r'\b\w+\b', text.lower())
-    return list(set(words))
+# ================================
+# 🧠 SKILL EXTRACTION (IMPROVED)
+# ================================
+def extract_skills(text):
+    words = text.split()
 
+    stopwords = set([
+        "the", "and", "with", "from", "this", "that", "have", "will",
+        "your", "about", "their", "been", "were", "into", "using",
+        "are", "for", "you", "can", "all", "any", "our", "out",
+        "job", "role", "work", "experience"
+    ])
 
-def compute_match_score(similarity):
-    return int(np.clip(round(similarity * 10), 1, 10))
+    keywords = [w for w in words if len(w) > 4 and w not in stopwords]
 
-
-def compute_interest_score(resume_text, jd_text):
-    resume_words = set(extract_keywords(resume_text))
-    jd_words = set(extract_keywords(jd_text))
-
-    overlap = len(resume_words & jd_words)
-    score = min(10, max(1, overlap // 5 + 5))  # simple heuristic
-    return score
+    return list(set(keywords))[:20]
 
 
-def get_matched_skills(resume_text, jd_text):
-    resume_words = set(extract_keywords(resume_text))
-    jd_words = set(extract_keywords(jd_text))
-
-    matched = list(resume_words & jd_words)
-    return ", ".join(matched[:5]) if matched else "limited overlap"
-
-
-def generate_explanation(skills):
-    return f"Matched skills: {skills}. Semantic similarity contributed to match score. Interest score derived from resume signals."
-
-# -------------------------------
-# PROCESS EACH JD
-# -------------------------------
-all_results = []
-
-print("\nLoaded JDs:", jd_df.shape)
+# ================================
+# 🎯 MATCHING + RANKING
+# ================================
+results = []
 
 for idx, jd_row in jd_df.iterrows():
+
     jd_id = jd_row['id']
-    jd_text = jd_row['job_description']
+    jd_text = clean_text(jd_row['jd'])
     jd_category = jd_row['category']
+    jd_category_norm = jd_row['norm_category']
 
-    print("\n==============================")
-    print(f"Processing JD {jd_id} ({jd_category})")
+    print(f"\nProcessing JD {jd_id} ({jd_category})")
 
-    # Filter candidates by predicted category
-    filtered = resume_df[
-        resume_df['predicted_category'] == jd_category
-    ].copy()
+    jd_embedding = embedder.encode(jd_text, convert_to_tensor=True)
 
-    if filtered.empty:
+    # Filter candidates by category (FIXED)
+    candidates = resume_df[
+        resume_df['norm_category'] == jd_category_norm
+    ]
+
+    if candidates.empty:
         print("⚠️ No candidates found")
         continue
 
-    # Encode JD
-    jd_embedding = embedder.encode([jd_text])
+    candidate_indices = candidates.index.tolist()
+    candidate_embeddings = resume_embeddings[candidate_indices]
 
-    # Compute similarity
-    sims = cosine_similarity(jd_embedding, resume_embeddings)[0]
-    filtered['similarity'] = sims[filtered.index]
+    similarities = util.cos_sim(jd_embedding, candidate_embeddings)[0]
 
-    # Scores
-    filtered['match_score'] = filtered['similarity'].apply(compute_match_score)
-    filtered['interest_score'] = filtered['resume'].apply(
-        lambda x: compute_interest_score(x, jd_text)
-    )
+    top_k = min(5, len(candidates))
+    top_results = similarities.topk(k=top_k)
 
-    filtered['final_score'] = (
-        0.7 * filtered['match_score'] +
-        0.3 * filtered['interest_score']
-    ).round().astype(int)
+    jd_skills = extract_skills(jd_text)
 
-    # Explainability
-    filtered['matched_skills'] = filtered['resume'].apply(
-        lambda x: get_matched_skills(x, jd_text)
-    )
+    for rank in range(top_k):
+        idx_in_candidates = top_results.indices[rank].item()
+        score = top_results.values[rank].item()
 
-    filtered['explanation'] = filtered['matched_skills'].apply(
-        generate_explanation
-    )
+        candidate = candidates.iloc[idx_in_candidates]
+        candidate_text = candidate['clean_resume']
+        candidate_id = candidate['id']
 
-    # Sort
-    top_candidates = filtered.sort_values(
-        by='final_score', ascending=False
-    ).head(5)
+        resume_skills = extract_skills(candidate_text)
 
-    print("\nTop 5 Candidates:")
+        matched = list(set(jd_skills).intersection(resume_skills))
 
-    for rank, (_, row) in enumerate(top_candidates.iterrows(), 1):
+        match_score = min(10, int(score * 10))
+        interest_score = min(10, len(matched))
+
+        final_score = round((0.7 * match_score + 0.3 * interest_score), 2)
+
         result = {
             "jd_id": jd_id,
-            "candidate_id": int(row['id']),
-            "predicted_category": row['predicted_category'],
-            "match_score": int(row['match_score']),
-            "interest_score": int(row['interest_score']),
-            "final_score": int(row['final_score']),
-            "matched_skills": row['matched_skills'],
-            "explanation": row['explanation']
+            "candidate_id": int(candidate_id),
+            "predicted_category": candidate['predicted_category'],
+            "match_score": match_score,
+            "interest_score": interest_score,
+            "final_score": final_score,
+            "matched_skills": ", ".join(matched),
+            "explanation": f"Matched skills: {', '.join(matched)}. Semantic similarity + keyword overlap used."
         }
 
-        print(f"Rank {rank}:", result)
-        all_results.append(result)
+        print(f"Rank {rank+1}:", result)
 
-# -------------------------------
-# SAVE RESULTS
-# -------------------------------
-results_df = pd.DataFrame(all_results)
-results_df.to_csv(output_path, index=False)
+        results.append(result)
 
-print(f"\n✅ Results saved at: {output_path}")
+
+# ================================
+# 💾 SAVE OUTPUT
+# ================================
+results_df = pd.DataFrame(results)
+
+os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
+results_df.to_csv(OUTPUT_PATH, index=False)
+
+print(f"\n✅ Results saved at: {OUTPUT_PATH}")
