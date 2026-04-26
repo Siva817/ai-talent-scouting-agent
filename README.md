@@ -1,48 +1,173 @@
-# AI-Powered Talent Scouting & Engagement Agent
+# 🤖 AI Talent Scouting & Engagement Agent
 
-## Overview
-This project helps recruiters automatically find and rank candidates based on job descriptions.
+## 📌 Overview
 
-## Features
-- Resume classification using ML
-- Semantic matching using Sentence Transformers
-- Candidate ranking based on:
-  - Match Score (1–10)
-  - Interest Score (1–10)
-- Explainability:
-  - Matched skills
-  - Reasoning for each candidate
+This project is an **AI-powered talent scouting system** that matches candidate resumes with job descriptions using:
 
-## How to Run
+* Machine Learning (classification)
+* NLP (text processing)
+* Semantic similarity (embeddings)
 
-1. Install dependencies:
+It helps recruiters **automatically shortlist and rank candidates** based on relevance and inferred interest.
+
+---
+
+## 🚀 Features
+
+* 📄 Resume classification into job categories
+* 🧠 Semantic matching using Sentence Transformers
+* 🎯 Candidate ranking based on:
+
+  * Match score (similarity)
+  * Interest score (keyword overlap)
+* 📊 Final ranked output in CSV format
+* 🔍 Explainable results (matched skills + reasoning)
+
+---
+
+## 🧠 How It Works
+
+### 1. Data Processing
+
+* Cleans resume and job description text
+* Normalizes categories (e.g., "IT" vs "information-technology")
+
+### 2. Classification Model
+
+* Uses **TF-IDF + Logistic Regression**
+* Predicts category of each resume
+
+### 3. Semantic Matching
+
+* Uses **Sentence Transformers (`all-MiniLM-L6-v2`)**
+* Converts text into embeddings
+* Calculates similarity between resumes and job descriptions
+
+### 4. Scoring Logic
+
+Final Score =
+`0.7 × Match Score (semantic similarity)` +
+`0.3 × Interest Score (keyword overlap)`
+
+---
+
+## 📂 Project Structure
+
 ```
-pip install pandas scikit-learn sentence-transformers
+ai-talent-scouting-agent/
+│
+├── code/
+│   └── talent_scout_agent.py
+│
+├── data/
+│   ├── resume.csv
+│   └── job_descriptions.csv
+│
+├── output/
+│   └── ranked_candidates.csv
+│
+└── README.md
 ```
 
-2. Place dataset:
-- resume.csv inside project folder
+---
 
-3. Run:
+## ▶️ How to Run
+
+### 1. Install dependencies
+
+```bash
+pip install pandas numpy scikit-learn sentence-transformers
 ```
-python checkcheckcheck.py
+
+### 2. Run the project
+
+```bash
+cd code
+python talent_scout_agent.py
 ```
 
-4. Output:
-- ranked_candidates.csv
+---
 
-## Architecture
+## 📥 Input Format
 
-JD Input → Parsing → ML Classification → Semantic Matching → Scoring → Ranking → Output
+### resume.csv
 
-## Scoring Logic
+```
+id, resume, category
+```
 
-Final Score = (0.7 × Match Score) + (0.3 × Interest Score)
+### job_descriptions.csv
 
-## Sample Output
+```
+id, category, jd
+```
 
-- Candidate ID: 20674668  
-- Match Score: 5  
-- Interest Score: 5  
-- Final Score: 6  
-- Explanation: Strong semantic similarity and relevant skills
+---
+
+## 📤 Output
+
+The system generates:
+
+```
+output/ranked_candidates.csv
+```
+
+### Sample Output Columns:
+
+* jd_id
+* candidate_id
+* predicted_category
+* match_score
+* interest_score
+* final_score
+* matched_skills
+* explanation
+
+---
+
+## 📊 Model Performance
+
+* Accuracy: ~68–70%
+* Model: Logistic Regression (baseline)
+* Embeddings: Sentence Transformers
+
+---
+
+## 🎯 Example Use Case
+
+A recruiter uploads:
+
+* Multiple resumes
+* A job description
+
+The system:
+
+* Filters relevant candidates
+* Ranks top matches
+* Explains why they were selected
+
+---
+
+## ⚠️ Limitations
+
+* Basic keyword-based skill extraction
+* Limited dataset size
+* Some categories may have lower prediction accuracy
+
+---
+
+## 🔮 Future Improvements
+
+* Use advanced models (BERT / LLMs)
+* Better skill extraction (NER-based)
+* Real-time chatbot integration
+* Web UI (Streamlit or Flask)
+* Feedback loop for continuous learning
+
+---
+
+## 👨‍💻 Author
+
+Built as a fast prototype for AI-based recruitment automation.
+
+---
