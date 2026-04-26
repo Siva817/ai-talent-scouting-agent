@@ -8,20 +8,17 @@ This project is an AI-powered recruitment system that automatically:
 * Matches resumes with job descriptions
 * Ranks candidates based on relevance and inferred interest
 
-It combines **Machine Learning + NLP + Semantic Search** to reduce manual hiring effort.
+It combines **Machine Learning + NLP + Semantic Search** to automate early-stage hiring.
 
 ---
 
 ## 🚀 Features
 
 * 📄 Resume classification using TF-IDF + Logistic Regression
-* 🧠 Semantic similarity using Sentence Transformers
-* 🎯 Candidate ranking based on:
-
-  * Match Score (semantic similarity)
-  * Interest Score (keyword overlap)
-* 📊 Final ranked output in CSV format
+* 🧠 Semantic matching using Sentence Transformers
+* 🎯 Intelligent candidate ranking system
 * 🔍 Explainable results (matched skills + reasoning)
+* 📊 CSV-based output for easy integration
 
 ---
 
@@ -29,7 +26,7 @@ It combines **Machine Learning + NLP + Semantic Search** to reduce manual hiring
 
 The system follows a hybrid NLP pipeline:
 
-```
+```id="a8p3qv"
 Resumes CSV
    ↓
 Text Cleaning & Preprocessing
@@ -38,7 +35,7 @@ TF-IDF Vectorization
    ↓
 Logistic Regression Classifier
    ↓
-Predicted Job Category
+Predicted Resume Category
 
 Job Descriptions CSV
    ↓
@@ -50,15 +47,11 @@ Resumes → Sentence Transformer Embeddings
    ↓
 Cosine Similarity Matching with Job Descriptions
    ↓
-Filtering by Predicted Category
+Filter by Predicted Category
    ↓
-Scoring System:
-   - Match Score (semantic similarity)
-   - Interest Score (keyword overlap)
+Scoring Engine
    ↓
-Final Ranking Engine
-   ↓
-Output: ranked_candidates.csv
+Ranked Candidates Output (CSV)
 ```
 
 ---
@@ -67,31 +60,55 @@ Output: ranked_candidates.csv
 
 ### 1. Data Preprocessing
 
-* Cleans resume and job description text
 * Removes special characters and noise
+* Converts text to lowercase
+* Standardizes resume and job description format
+
+---
 
 ### 2. Resume Classification
 
-* Uses TF-IDF vectorization
-* Logistic Regression predicts job category
+* Uses **TF-IDF vectorization**
+* Logistic Regression model
+* Predicts job category of each resume
+
+---
 
 ### 3. Semantic Matching
 
-* Sentence Transformer (`all-MiniLM-L6-v2`)
-* Converts resumes and JDs into embeddings
-* Uses cosine similarity for matching
+* Uses Sentence Transformer (`all-MiniLM-L6-v2`)
+* Converts resumes and job descriptions into embeddings
+* Uses cosine similarity for semantic matching
 
-### 4. Scoring System
+---
 
-Final Score =
-`0.7 × Match Score (semantic similarity)` +
-`0.3 × Interest Score (keyword overlap)`
+## 🎯 Scoring Logic
+
+Each candidate is ranked using a weighted scoring system:
+
+### 1. Match Score (70%)
+
+* Based on cosine similarity between resume and job description embeddings
+* Captures semantic relevance and contextual similarity
+
+### 2. Interest Score (30%)
+
+* Based on keyword overlap between resume and job description
+* Captures domain-specific skills and intent
+
+---
+
+### 📌 Final Score Formula:
+
+```id="sc3r1a"
+Final Score = 0.7 × Match Score + 0.3 × Interest Score
+```
 
 ---
 
 ## 📂 Project Structure
 
-```
+```id="d8v1qp"
 ai-talent-scouting-agent/
 │
 ├── code/
@@ -113,13 +130,13 @@ ai-talent-scouting-agent/
 
 ### 1. Install dependencies
 
-```bash
+```bash id="k2n9hf"
 pip install pandas numpy scikit-learn sentence-transformers
 ```
 
 ### 2. Run the project
 
-```bash
+```bash id="v7c1mq"
 cd code
 python talent_scout_agent.py
 ```
@@ -130,13 +147,13 @@ python talent_scout_agent.py
 
 ### resume.csv
 
-```
+```id="r2x9ka"
 id, resume, category
 ```
 
 ### job_descriptions.csv
 
-```
+```id="p4m8zd"
 id, category, jd
 ```
 
@@ -144,9 +161,9 @@ id, category, jd
 
 ## 📤 Output
 
-The system generates:
+Generated file:
 
-```
+```id="o9q2ls"
 output/ranked_candidates.csv
 ```
 
@@ -173,7 +190,7 @@ output/ranked_candidates.csv
 
 ## 🎯 Example Use Case
 
-1. Recruiter uploads resumes + job descriptions
+1. Recruiter uploads resumes and job descriptions
 2. System classifies resumes into domains
 3. Semantic matching finds relevant candidates
 4. Candidates are ranked and explained
@@ -183,16 +200,16 @@ output/ranked_candidates.csv
 ## ⚠️ Limitations
 
 * Basic keyword-based skill extraction
-* Dataset size affects accuracy
-* Some categories may be underrepresented
+* Dataset imbalance affects performance
+* Some categories have lower prediction accuracy
 
 ---
 
 ## 🔮 Future Improvements
 
-* Upgrade to transformer-based classifier (BERT/LLM)
-* Better skill extraction using NER models
-* Web UI (Streamlit/Flask)
+* Upgrade to transformer-based classification (BERT/LLM)
+* Advanced skill extraction using NER models
+* Web UI using Streamlit or Flask
 * Real-time recruitment dashboard
 * Feedback loop for continuous learning
 
@@ -200,6 +217,6 @@ output/ranked_candidates.csv
 
 ## 👨‍💻 Author
 
-Built as a prototype AI recruitment assistant using NLP and Machine Learning.
+Built as an AI recruitment automation prototype using NLP and Machine Learning.
 
 ---
