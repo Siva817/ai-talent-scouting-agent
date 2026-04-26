@@ -13,10 +13,10 @@ from sklearn.metrics.pairwise import cosine_similarity
 # ==============================
 
 resume_df = pd.read_csv(
-    r"C:\Users\prasa\OneDrive\Desktop\talent_scouting_and_engagement_agent\resume.csv"
+    r"resume.csv"
 )
 jd_df = pd.read_csv(
-    r"C:\Users\prasa\OneDrive\Desktop\talent_scouting_and_engagement_agent\job_descriptions.csv"
+    r"job_descriptions.csv"
 )
 
 # Normalize category names
@@ -187,7 +187,7 @@ for _, jd_row in jd_df.iterrows():
 # 7. SAVE RESULTS
 # ==============================
 
-output_path = r"C:/Users/prasa/OneDrive/Desktop/talent_scouting_and_engagement_agent/ranked_candidates.csv"
+output_path = r"ranked_candidates.csv"
 
 pd.DataFrame(results).to_csv(output_path, index=False)
 
