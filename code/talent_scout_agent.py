@@ -1,194 +1,182 @@
 import pandas as pd
 import numpy as np
+import os
 import re
+
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report, accuracy_score
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, classification_report
+
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
-# ==============================
-# 1. LOAD DATA
-# ==============================
+# -------------------------------
+# PATH SETUP (IMPORTANT)
+# -------------------------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.abspath(os.path.join(BASE_DIR, ".."))
 
-resume_df = pd.read_csv(
-    r"resume.csv"
-)
-jd_df = pd.read_csv(
-    r"job_descriptions.csv"
-)
+resume_path = os.path.join(ROOT_DIR, "data", "resume.csv")
+jd_path = os.path.join(ROOT_DIR, "data", "job_descriptions.csv")
+output_path = os.path.join(ROOT_DIR, "output", "ranked_candidates.csv")
 
-# Normalize category names
-def clean_category(text):
-    return text.lower().replace("-", " ").strip()
-
-resume_df['category'] = resume_df['category'].apply(clean_category)
-jd_df['category'] = jd_df['category'].apply(clean_category)
+# -------------------------------
+# LOAD DATA
+# -------------------------------
+resume_df = pd.read_csv(resume_path)
+jd_df = pd.read_csv(jd_path)
 
 print("Columns:", resume_df.columns)
+print("\nCategory distribution:\n", resume_df['category'].value_counts())
+print("\nMissing values:\n", resume_df.isnull().sum())
 
-# ==============================
-# 2. TRAIN CLASSIFICATION MODEL
-# ==============================
+# -------------------------------
+# TRAIN CLASSIFICATION MODEL
+# -------------------------------
+X = resume_df['resume']
+y = resume_df['category']
+
+tfidf = TfidfVectorizer(stop_words='english', max_features=5000)
+X_vec = tfidf.fit_transform(X)
 
 X_train, X_test, y_train, y_test = train_test_split(
-    resume_df['resume'], resume_df['category'], test_size=0.2, random_state=42
+    X_vec, y, test_size=0.2, random_state=42
 )
 
-vectorizer = TfidfVectorizer(stop_words='english', max_features=5000)
-X_train_vec = vectorizer.fit_transform(X_train)
-X_test_vec = vectorizer.transform(X_test)
+model = LogisticRegression(max_iter=1000)
+model.fit(X_train, y_train)
 
-clf = LogisticRegression(max_iter=200)
-clf.fit(X_train_vec, y_train)
-
-y_pred = clf.predict(X_test_vec)
+y_pred = model.predict(X_test)
 
 print("\nAccuracy:", accuracy_score(y_test, y_pred))
 print("\nClassification Report:\n")
 print(classification_report(y_test, y_pred))
 
-# ==============================
-# 3. LOAD EMBEDDING MODEL
-# ==============================
+# Predict categories for all resumes
+resume_df['predicted_category'] = model.predict(X_vec)
 
+# -------------------------------
+# LOAD EMBEDDING MODEL
+# -------------------------------
 print("\nLoading Sentence Transformer...")
-model = SentenceTransformer('all-MiniLM-L6-v2')
+embedder = SentenceTransformer('all-MiniLM-L6-v2')
 
 print("Encoding resumes...")
-resume_embeddings = model.encode(
-    resume_df['resume'].tolist(), batch_size=32, show_progress_bar=True
+resume_embeddings = embedder.encode(
+    resume_df['resume'].tolist(), show_progress_bar=True
 )
 
-# ==============================
-# 4. SKILL EXTRACTION
-# ==============================
+# -------------------------------
+# HELPER FUNCTIONS
+# -------------------------------
 
 def extract_keywords(text):
-    words = re.findall(r'\b[a-zA-Z]{3,}\b', text.lower())
+    words = re.findall(r'\b\w+\b', text.lower())
     return list(set(words))
 
-# ==============================
-# 5. SCORING FUNCTIONS
-# ==============================
 
-def scale_score(value):
-    """Convert similarity (0–1) to score (1–10)"""
-    return int(np.clip(round(value * 10), 1, 10))
+def compute_match_score(similarity):
+    return int(np.clip(round(similarity * 10), 1, 10))
 
 
-def compute_interest(resume_text):
-    """Simple heuristic for interest"""
-    resume_text = resume_text.lower()
+def compute_interest_score(resume_text, jd_text):
+    resume_words = set(extract_keywords(resume_text))
+    jd_words = set(extract_keywords(jd_text))
 
-    if "looking" in resume_text or "seeking" in resume_text:
-        return 8
-    elif "experienced" in resume_text:
-        return 7
-    else:
-        return 6
+    overlap = len(resume_words & jd_words)
+    score = min(10, max(1, overlap // 5 + 5))  # simple heuristic
+    return score
 
 
-def explain_match(jd_skills, resume_text):
-    resume_words = set(resume_text.lower().split())
-    matched = list(set(jd_skills) & resume_words)
+def get_matched_skills(resume_text, jd_text):
+    resume_words = set(extract_keywords(resume_text))
+    jd_words = set(extract_keywords(jd_text))
 
-    if matched:
-        return ", ".join(matched[:5])
-    else:
-        return "general relevance"
+    matched = list(resume_words & jd_words)
+    return ", ".join(matched[:5]) if matched else "limited overlap"
 
-# ==============================
-# 6. MATCHING PIPELINE
-# ==============================
 
-results = []
+def generate_explanation(skills):
+    return f"Matched skills: {skills}. Semantic similarity contributed to match score. Interest score derived from resume signals."
+
+# -------------------------------
+# PROCESS EACH JD
+# -------------------------------
+all_results = []
 
 print("\nLoaded JDs:", jd_df.shape)
 
-for _, jd_row in jd_df.iterrows():
-
-    jd_id = int(jd_row['id'])
-    jd_text = jd_row['jd']
+for idx, jd_row in jd_df.iterrows():
+    jd_id = jd_row['id']
+    jd_text = jd_row['job_description']
     jd_category = jd_row['category']
 
     print("\n==============================")
     print(f"Processing JD {jd_id} ({jd_category})")
 
-    jd_vec = vectorizer.transform([jd_text])
-    predicted_category = clean_category(clf.predict(jd_vec)[0])
+    # Filter candidates by predicted category
+    filtered = resume_df[
+        resume_df['predicted_category'] == jd_category
+    ].copy()
 
-    jd_embedding = model.encode([jd_text])[0]
+    if filtered.empty:
+        print("⚠️ No candidates found")
+        continue
 
-    jd_skills = extract_keywords(jd_text)
+    # Encode JD
+    jd_embedding = embedder.encode([jd_text])
 
-    # Filter candidates
-    candidates = resume_df[
-        (resume_df['category'] == jd_category) |
-        (resume_df['category'] == predicted_category)
-    ]
+    # Compute similarity
+    sims = cosine_similarity(jd_embedding, resume_embeddings)[0]
+    filtered['similarity'] = sims[filtered.index]
 
-    if len(candidates) == 0:
-        print("⚠️ No exact category match → using all resumes")
-        candidates = resume_df
+    # Scores
+    filtered['match_score'] = filtered['similarity'].apply(compute_match_score)
+    filtered['interest_score'] = filtered['resume'].apply(
+        lambda x: compute_interest_score(x, jd_text)
+    )
 
-    candidate_indices = candidates.index.tolist()
-    candidate_embeddings = resume_embeddings[candidate_indices]
+    filtered['final_score'] = (
+        0.7 * filtered['match_score'] +
+        0.3 * filtered['interest_score']
+    ).round().astype(int)
 
-    similarities = cosine_similarity([jd_embedding], candidate_embeddings)[0]
+    # Explainability
+    filtered['matched_skills'] = filtered['resume'].apply(
+        lambda x: get_matched_skills(x, jd_text)
+    )
 
-    scored_candidates = []
+    filtered['explanation'] = filtered['matched_skills'].apply(
+        generate_explanation
+    )
 
-    for idx, sim in zip(candidate_indices, similarities):
-
-        resume_text = resume_df.loc[idx, 'resume']
-        candidate_id = int(resume_df.loc[idx, 'id'])
-        category = resume_df.loc[idx, 'category']
-
-        match_score = scale_score(sim)
-        interest_score = compute_interest(resume_text)
-
-        final_score = int(round((match_score + interest_score) / 2))
-
-        matched_skills = explain_match(jd_skills, resume_text)
-
-        explanation = (
-            f"Skills match: {matched_skills}. "
-            f"Semantic similarity used for matching. "
-            f"Interest inferred from resume tone."
-        )
-
-        scored_candidates.append({
-            "jd_id": jd_id,
-            "candidate_id": candidate_id,
-            "category": category,
-            "match_score": match_score,
-            "interest_score": interest_score,
-            "final_score": final_score,
-            "matched_skills": matched_skills,
-            "explanation": explanation
-        })
-
-    # Sort top 5
-    top_candidates = sorted(
-        scored_candidates,
-        key=lambda x: x['final_score'],
-        reverse=True
-    )[:5]
+    # Sort
+    top_candidates = filtered.sort_values(
+        by='final_score', ascending=False
+    ).head(5)
 
     print("\nTop 5 Candidates:")
 
-    for i, cand in enumerate(top_candidates, 1):
-        print(f"Rank {i}: {cand}")
-        results.append(cand)
+    for rank, (_, row) in enumerate(top_candidates.iterrows(), 1):
+        result = {
+            "jd_id": jd_id,
+            "candidate_id": int(row['id']),
+            "predicted_category": row['predicted_category'],
+            "match_score": int(row['match_score']),
+            "interest_score": int(row['interest_score']),
+            "final_score": int(row['final_score']),
+            "matched_skills": row['matched_skills'],
+            "explanation": row['explanation']
+        }
 
-# ==============================
-# 7. SAVE RESULTS
-# ==============================
+        print(f"Rank {rank}:", result)
+        all_results.append(result)
 
-output_path = r"ranked_candidates.csv"
-
-pd.DataFrame(results).to_csv(output_path, index=False)
+# -------------------------------
+# SAVE RESULTS
+# -------------------------------
+results_df = pd.DataFrame(all_results)
+results_df.to_csv(output_path, index=False)
 
 print(f"\n✅ Results saved at: {output_path}")
